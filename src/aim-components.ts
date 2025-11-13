@@ -12,7 +12,7 @@
       ValueIsInteger, ValueIsIntegerInRange, ValueIsOrdinal, ValueIsCardinal,
     ValueIsString, ValueIsStringMatching, ValueIsText, ValueIsTextline,
     ValueIsListSatisfying,
-    ValueIsPlainObject,
+    ValueIsObject, ValueIsPlainObject,
     ValueIsFunction,
     ValueIsColor, ValueIsEMailAddress, ValueIsURL,
     ValueIsOneOf,
@@ -34,7 +34,16 @@
   import { useId, useRef, useState, useEffect, useCallback, useMemo, useContext, useErrorBoundary } from 'preact/hooks'
   type VNode = any
 
+  export {
+    render, html,
+    createContext, toChildArray, cloneElement,
+    createPortal,
+    useId, useRef, useState, useEffect, useCallback, useMemo, useContext,
+      useErrorBoundary
+  }
+
   import { useAutoAnimate } from '@formkit/auto-animate/preact'
+  export { useAutoAnimate }
 
 /**** for MarkdownView ****/
 
@@ -61,6 +70,10 @@
 /**** make some existing types indexable ****/
 
   interface Indexable { [Key:string|number|symbol]:any }
+
+/**** generic constructor for asynchronous functions ****/
+
+  export const AsyncFunction = (async () => {}).constructor
 
 //------------------------------------------------------------------------------
 //--                             Type Definitions                             --
@@ -361,6 +374,15 @@ debugger
 
   function ValueIsRef (Value:any):boolean {
     return ValueIsPlainObject(Value) && ('current' in Value)
+  }
+
+/**** ValueIsPromise ****/
+
+  function ValueIsPromise (Value:any):boolean {
+    return (
+      (ValueIsObject(Value) || ValueIsFunction(Value)) &&
+      ValueIsFunction(Value.then)
+    )
   }
 
 //------------------------------------------------------------------------------
@@ -1651,8 +1673,27 @@ debugger
   export function AIM_ErrorIndicator (PropSet:Indexable):any {
     return safelyRendered(() => {
       let [ ErrorToShow ] = parsedPropSet(PropSet,
-        optionalValue('error',(Value:any) => Value instanceof Error),
+        optionalValue('error',(Value:any) => (Value instanceof Error) || ValueIsText(Value)),
       )
+
+      switch (true) {
+        case ErrorToShow instanceof Error:
+          break
+        case ValueIsText(ErrorToShow):
+          if (/^[^\n]+\n\n[^\n]+/.test(ErrorToShow)) {
+            const Title   = ErrorToShow.replace(/\n\n.*$/,'')
+            const Message = ErrorToShow.replace(/^[^\n]+\n\n/,'')
+            ErrorToShow      = new Error(Message)
+            ErrorToShow.name = Title
+          } else {
+            ErrorToShow      = new Error(ErrorToShow)
+            ErrorToShow.name = 'Unexpected Failure'
+          }
+          break
+        default:
+          ErrorToShow      = new Error('' + ErrorToShow)
+          ErrorToShow.name = 'Unexpected Failure'
+      }
 
       const onClick = ():void => {
 console.warn(ErrorToShow)
@@ -7469,6 +7510,129 @@ if (List == null) { debugger }
 
 
 
+//------------------------------------------------------------------------------
+//--                              AppletElement                              --
+//------------------------------------------------------------------------------
+
+  class AIM_AppletElement extends HTMLElement {
+    private _Renderer:AIM_Renderer
+
+    constructor () {
+      super()
+
+    /**** get (and compile) script ****/
+
+      let Script = unescapedHTMLAttribute(this.getAttribute('src') ?? '')
+      if (Script.trim() === '') {
+        this._Renderer = AppletFailingWith('')
+        return
+      }
+
+      try {
+// @ts-ignore TS2351 the following expression is indeed valid
+        this._Renderer = new AsyncFunction('PropSet',Script) as AIM_Renderer
+      } catch (Signal:any) {
+        this._Renderer = AppletFailingWith(
+          'Compilation Error\n\nCompiling Applet "src" failed with ' +
+          (Signal.stack ?? Signal.message ?? Signal)
+        )
+        return
+      }
+    }
+
+    connectedCallback () {
+      render(html`<${AppletView} renderer=${this._Renderer}/>`,this)
+    }
+
+    disconnectedCallback () { render(null,this) }
+  }
+//customElements.define('aim-applet',AIM_AppletElement)               // not yet
+
+/**** AppletFailingWith ****/
+
+  function AppletFailingWith (Message:AIM_Text):AIM_Renderer {
+    if (Message.trim() === '') {
+      return function (PropSet:Indexable) { return '' }
+    } else {
+      return function (PropSet:Indexable) {
+        return html`<${AIM_ErrorIndicator} error=${Message}/>`
+      }
+    }
+  }
+
+/**** AppletView ****/
+
+  function AppletView (PropSet:Indexable):any {
+    const [ asyncRendering,setAsyncRendering ] = useState()
+    const asyncRenderingRef = useRef()
+
+    const [ Error,resetError ] = useErrorBoundary()
+    if (Error == null) {
+      if (asyncRenderingRef.current != asyncRendering) {  // new async rendering
+        asyncRenderingRef.current = asyncRendering
+        return asyncRendering
+      }
+
+      let Rendering:any = PropSet.renderer({})
+      if (ValueIsPromise(Rendering)) {
+        Rendering               // wait for promise to be resolved (or rejected)
+          .then((Rendering:any) => setAsyncRendering(Rendering))
+          .catch((Error:any) => setAsyncRendering(
+            html`<${AIM_ErrorIndicator} error=${Error}/>`)
+          )
+        return                                                 // for the moment
+      } else {
+        return Rendering                         // synchronous rendering result
+      }
+    } else {
+      const Message = (
+        'Applet Failure\n\nAIM Applet failed with ' +
+        (Error.stack ?? Error.message ?? Error)
+      )
+      return html`<${AIM_ErrorIndicator} error=${Message}/>`
+    }
+  }
+
+/**** escapedHTMLAttribute ****/
+
+  function escapedHTMLAttribute (OriginalValue:AIM_Text):AIM_Text {
+    return OriginalValue.replace(
+      /[&<>"'\u0000-\u001F\u007F-\u009F\\]/g, function (Match:string):string {
+        switch (Match) {
+          case '&':  return '&amp;'
+          case '<':  return '&lt;'
+          case '>':  return '&gt;'
+          case '"':  return '&quot;'
+          case "'":  return '&apos;'
+          case '\n': return '\n'            // allows line feeds to be preserved
+          case '\\': return '&#92;'
+          default:   let Result = Match.charCodeAt(0).toString(16)
+                     return '&#x0000'.substring(3,7-Result.length) + Result + ';'
+        }
+      }
+    )
+  }
+
+/**** unescapedHTMLAttribute ****/
+
+  function unescapedHTMLAttribute (OriginalValue:AIM_Text):AIM_Text {
+    return OriginalValue.replace(
+      /&(amp|lt|gt|quot|apos|#92|#x[0-9a-fA-F]{4});/g, function (Match:string):string {
+        switch (Match) {
+          case '&amp;':  return '&'
+          case '&lt;':   return '<'
+          case '&gt;':   return '>'
+          case '&quot;': return '"'
+          case '&apos;': return "'"
+          case '&#92;':  return '\\'
+          default:
+            let Code = parseInt(Match.slice(3),16)
+            return String.fromCharCode(Code)
+        }
+      }
+    )
+  }
+
 /**** consume/consumingEvent ****/
 
   export function consumeEvent (Event:Event, completely:boolean = false):void {
@@ -7514,3 +7678,13 @@ if (List == null) { debugger }
       }
     return Copy
   }
+
+  window.addEventListener('unhandledrejection', (Event) => {
+    console.error(
+      'caught unhandled error in Promise:',
+      Event.reason?.stack ?? Event.reason?.message, Event
+    )
+    Event.preventDefault()
+  })
+
+  customElements.define('aim-applet',AIM_AppletElement)
