@@ -1,5 +1,6 @@
-import { ValidatorForClassifier, acceptNil, rejectNil, ValueIsStringMatching, ValueIsFiniteNumber, ValueIsPlainObject, expectText, expectBoolean, quoted, ValueIsOneOf, ValueIsListSatisfying, ValueIsOrdinal, expectPlainObject, ValueIsFunction, expectFunction, allowTextline, ValueIsBoolean, ValueIsNumber, ValueIsNumberInRange, ValueIsInteger, ValueIsIntegerInRange, ValueIsCardinal, ValueIsString, ValueIsText, ValueIsTextline, ValueIsColor, ValueIsEMailAddress, ValueIsURL, allowPlainObject, expectValue, allowFunction, allowOrdinal, allowBoolean, expectInstanceOf, expectTextline } from "javascript-interface-library";
+import { ValidatorForClassifier, acceptNil, rejectNil, ValueIsStringMatching, ValueIsFiniteNumber, ValueIsPlainObject, expectText, expectBoolean, ValueIsObject, ValueIsFunction, expectFunction, quoted, ValueIsOneOf, ValueIsListSatisfying, ValueIsOrdinal, expectPlainObject, allowTextline, ValueIsBoolean, ValueIsNumber, ValueIsNumberInRange, ValueIsInteger, ValueIsIntegerInRange, ValueIsCardinal, ValueIsString, ValueIsText, ValueIsTextline, ValueIsColor, ValueIsEMailAddress, ValueIsURL, allowPlainObject, expectValue, allowFunction, allowOrdinal, allowBoolean, expectInstanceOf, expectTextline } from "javascript-interface-library";
 import { h as h$1, options as options$1, Component, createElement, Fragment, toChildArray, render, createContext } from "preact";
+import { cloneElement, createContext as createContext2, render as render2, toChildArray as toChildArray2 } from "preact";
 import e$1 from "htm";
 import { Marked } from "marked";
 import { Marked as Marked2 } from "marked";
@@ -871,7 +872,7 @@ function useAutoAnimate(options2) {
   };
   _(() => {
     if (element.current instanceof HTMLElement)
-      setController(autoAnimate(element.current, {}));
+      setController(autoAnimate(element.current, options2 || {}));
   }, []);
   _(() => {
     return () => {
@@ -5385,6 +5386,8 @@ HighlightJS.registerLanguage("json", json);
 HighlightJS.registerLanguage("typescript", typescript);
 HighlightJS.registerLanguage("html", xml);
 HighlightJS.registerLanguage("xml", xml);
+const AsyncFunction = (async () => {
+}).constructor;
 const $normalizedName = Symbol("normalizedName");
 const AssetsBase = "/";
 const IconFolder = AssetsBase + "icons/";
@@ -5569,6 +5572,9 @@ function ValueIsIndexPath(Value) {
 }
 function ValueIsRef(Value) {
   return ValueIsPlainObject(Value) && "current" in Value;
+}
+function ValueIsPromise(Value) {
+  return (ValueIsObject(Value) || ValueIsFunction(Value)) && ValueIsFunction(Value.then);
 }
 function parsedPropSet(PropSet, ...ParserList) {
   expectPlainObject("PropSet", PropSet);
@@ -6517,8 +6523,26 @@ function AIM_ErrorIndicator(PropSet) {
   return safelyRendered(() => {
     let [ErrorToShow] = parsedPropSet(
       PropSet,
-      optionalValue("error", (Value) => Value instanceof Error)
+      optionalValue("error", (Value) => Value instanceof Error || ValueIsText(Value))
     );
+    switch (true) {
+      case ErrorToShow instanceof Error:
+        break;
+      case ValueIsText(ErrorToShow):
+        if (/^[^\n]+\n\n[^\n]+/.test(ErrorToShow)) {
+          const Title2 = ErrorToShow.replace(/\n\n.*$/, "");
+          const Message = ErrorToShow.replace(/^[^\n]+\n\n/, "");
+          ErrorToShow = new Error(Message);
+          ErrorToShow.name = Title2;
+        } else {
+          ErrorToShow = new Error(ErrorToShow);
+          ErrorToShow.name = "Unexpected Failure";
+        }
+        break;
+      default:
+        ErrorToShow = new Error("" + ErrorToShow);
+        ErrorToShow.name = "Unexpected Failure";
+    }
     const onClick = () => {
       console.warn(ErrorToShow);
       window.alert(ErrorMessageFor(ErrorToShow));
@@ -12362,6 +12386,90 @@ function NLV_ListItemView(PropSet) {
       ${Contents}
     </>`;
 }
+class AIM_AppletElement extends HTMLElement {
+  constructor() {
+    super();
+    let Script = unescapedHTMLAttribute(this.getAttribute("src") ?? "");
+    if (Script.trim() === "") {
+      this._Renderer = AppletFailingWith("");
+      return;
+    }
+    try {
+      this._Renderer = new AsyncFunction("PropSet", Script);
+    } catch (Signal) {
+      this._Renderer = AppletFailingWith(
+        'Compilation Error\n\nCompiling Applet "src" failed with ' + (Signal.stack ?? Signal.message ?? Signal)
+      );
+      return;
+    }
+  }
+  connectedCallback() {
+    render(m$1`<${AppletView} renderer=${this._Renderer}/>`, this);
+  }
+  disconnectedCallback() {
+    render(null, this);
+  }
+}
+function AppletFailingWith(Message) {
+  if (Message.trim() === "") {
+    return function(PropSet) {
+      return "";
+    };
+  } else {
+    return function(PropSet) {
+      return m$1`<${AIM_ErrorIndicator} error=${Message}/>`;
+    };
+  }
+}
+function AppletView(PropSet) {
+  const [asyncRendering, setAsyncRendering] = y();
+  const asyncRenderingRef = F();
+  const [Error2, resetError] = O$1();
+  if (Error2 == null) {
+    if (asyncRenderingRef.current != asyncRendering) {
+      asyncRenderingRef.current = asyncRendering;
+      return asyncRendering;
+    }
+    let Rendering = PropSet.renderer({});
+    if (ValueIsPromise(Rendering)) {
+      Rendering.then((Rendering2) => setAsyncRendering(Rendering2)).catch(
+        (Error3) => setAsyncRendering(
+          m$1`<${AIM_ErrorIndicator} error=${Error3}/>`
+        )
+      );
+      return;
+    } else {
+      return Rendering;
+    }
+  } else {
+    const Message = "Applet Failure\n\nAIM Applet failed with " + (Error2.stack ?? Error2.message ?? Error2);
+    return m$1`<${AIM_ErrorIndicator} error=${Message}/>`;
+  }
+}
+function unescapedHTMLAttribute(OriginalValue) {
+  return OriginalValue.replace(
+    /&(amp|lt|gt|quot|apos|#92|#x[0-9a-fA-F]{4});/g,
+    function(Match) {
+      switch (Match) {
+        case "&amp;":
+          return "&";
+        case "&lt;":
+          return "<";
+        case "&gt;":
+          return ">";
+        case "&quot;":
+          return '"';
+        case "&apos;":
+          return "'";
+        case "&#92;":
+          return "\\";
+        default:
+          let Code = parseInt(Match.slice(3), 16);
+          return String.fromCharCode(Code);
+      }
+    }
+  );
+}
 function consumeEvent(Event, completely = false) {
   Event.stopPropagation();
   if (completely == true) {
@@ -12396,6 +12504,15 @@ function deepCopyOf(Value) {
   }
   return Copy;
 }
+window.addEventListener("unhandledrejection", (Event) => {
+  console.error(
+    "caught unhandled error in Promise:",
+    Event.reason?.stack ?? Event.reason?.message,
+    Event
+  );
+  Event.preventDefault();
+});
+customElements.define("aim-applet", AIM_AppletElement);
 export {
   AIM_DatePattern,
   AIM_DateRegExp,
@@ -12421,6 +12538,7 @@ export {
   AIM_supportedMarkdownFormats,
   AIM_supportedTextFormats,
   AccordionFold,
+  AsyncFunction,
   Button,
   Checkbox,
   ColorInput,
@@ -12513,8 +12631,11 @@ export {
   allowedPosition,
   allowedSize,
   centered,
+  cloneElement,
   consumeEvent,
   consumingEvent,
+  createContext2 as createContext,
+  H as createPortal,
   deepCopyOf,
   executeCallback,
   executedCallback,
@@ -12538,6 +12659,7 @@ export {
   fullsized,
   horizontal,
   horizontalSeparator,
+  m$1 as html,
   installStylesheetFor,
   mandatoryAttribute,
   mandatoryBoolean,
@@ -12586,21 +12708,32 @@ export {
   parsedProp,
   parsedPropSet,
   pseudoRef,
+  render2 as render,
   safelyRendered,
   selective,
   stacked,
   tabular,
   throwError,
   throwReadOnlyError,
+  toChildArray2 as toChildArray,
   uninstallStylesheetFor,
+  useAutoAnimate,
+  b as useCallback,
   useClickDragging,
   useConfiguration,
+  j$1 as useContext,
   useDialogContext,
   useDragging,
+  _ as useEffect,
+  O$1 as useErrorBoundary,
   useFileDropCatcher,
+  P$1 as useId,
+  q$1 as useMemo,
   useOnlineStatus,
   useOverlayContext,
+  F as useRef,
   useRerenderer,
+  y as useState,
   useWindowSize,
   vertical,
   verticalSeparator
