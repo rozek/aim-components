@@ -14,8 +14,8 @@
   },
   "license": "MIT",
   "type": "module",
-  "main": "./dist/aim-components.js",
-  "module": "./dist/aim-components.js",
+  "main": "./dist/aim-components.esm.js",
+  "module": "./dist/aim-components.esm.js",
   "types": "./dist/aim-components.d.ts",
   "scripts": {
     "dev": "vite",
