@@ -9407,7 +9407,7 @@ installStylesheetFor("aim-component.checkbox", `
     }
     .aim-component.checkbox > input {
       position:absolute;
-      left:50%; top:50%; width:100%; height:100%;
+      left:50%; top:50%;
       transform:translate(-50%,-50%);
       margin:0px; padding:0px;
     }
@@ -9465,7 +9465,7 @@ installStylesheetFor("aim-component.radiobutton", `
     }
     .aim-component.radiobutton > input {
       position:absolute;
-      left:50%; top:50%; width:100%; height:100%;
+      left:50%; top:50%;
       transform:translate(-50%,-50%);
       margin:0px; padding:0px;
     }
