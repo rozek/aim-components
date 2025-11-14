@@ -795,9 +795,26 @@ debugger
 /**** useConfiguration (Configuration is an object of objects) ****/
 
   export function useConfiguration (
-    initialConfiguration:Indexable = {}
+    initialConfiguration:Indexable|Function = {}
   ):[Indexable,Function] {
-    allowPlainObject('initial configuration',initialConfiguration)
+    if (
+      ! ValueIsFunction(initialConfiguration) &&
+      ! ValueIsPlainObject(initialConfiguration)
+    ) throwError(
+      'InvalidArgument:the given initial configuration is neither a plain ' +
+      'object nor a function'
+    )
+
+    if (ValueIsFunction(initialConfiguration)) {
+      initialConfiguration = executedCallback(
+        'component callback "initialConfiguration"', initialConfiguration as Function
+      )
+
+      if (! ValueIsPlainObject(initialConfiguration)) throwError(
+        'InvalidArgument:the result of the initial configuration callback is ' +
+        'not a plain object'
+      )
+    }
 
     const ConfigurationRef = useRef()
     if (ConfigurationRef.current == null) {
