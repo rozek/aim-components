@@ -9315,7 +9315,7 @@ function FAIcon(PropSet) {
 installStylesheetFor("aim-component.fa-icon", `
     .aim-component.fa-icon {
       width:24px ! important; height:24px ! important;
-      font-size:24px; line-height:24px; text-align:center;
+      font-size:18px; line-height:24px; text-align:center;
       pointer-events:auto;
     }
 
