@@ -2911,8 +2911,13 @@ console.warn(ErrorToShow)
   }
 
   installStylesheetFor('aim-component.selective',`
+    .aim-component.selective {
+      display:flex ! important; flex-flow:column nowrap ! important;
+        align-items:stretch ! important; justify-content:stretch ! important;
+      flex:1 0 auto;
+    }
     .aim-component.selective > * {
-      display:block; position:absolute;
+      display:block; position:relative;
       left:0px; top:0px; right:auto; bottom:auto; width:100%; height:100%;
     }
   `)
