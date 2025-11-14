@@ -5848,7 +5848,18 @@ function useRerenderer() {
   return rerender;
 }
 function useConfiguration(initialConfiguration = {}) {
-  allowPlainObject("initial configuration", initialConfiguration);
+  if (!ValueIsFunction(initialConfiguration) && !ValueIsPlainObject(initialConfiguration)) throwError(
+    "InvalidArgument:the given initial configuration is neither a plain object nor a function"
+  );
+  if (ValueIsFunction(initialConfiguration)) {
+    initialConfiguration = executedCallback(
+      'component callback "initialConfiguration"',
+      initialConfiguration
+    );
+    if (!ValueIsPlainObject(initialConfiguration)) throwError(
+      "InvalidArgument:the result of the initial configuration callback is not a plain object"
+    );
+  }
   const ConfigurationRef = F();
   if (ConfigurationRef.current == null) {
     ConfigurationRef.current = deepCopyOf(initialConfiguration);
