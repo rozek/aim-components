@@ -805,19 +805,19 @@ debugger
       'object nor a function'
     )
 
-    if (ValueIsFunction(initialConfiguration)) {
-      initialConfiguration = executedCallback(
-        'component callback "initialConfiguration"', initialConfiguration as Function
-      )
-
-      if (! ValueIsPlainObject(initialConfiguration)) throwError(
-        'InvalidArgument:the result of the initial configuration callback is ' +
-        'not a plain object'
-      )
-    }
-
     const ConfigurationRef = useRef()
     if (ConfigurationRef.current == null) {
+      if (ValueIsFunction(initialConfiguration)) {
+        initialConfiguration = executedCallback(
+          'component callback "initialConfiguration"', initialConfiguration as Function
+        )
+
+        if (! ValueIsPlainObject(initialConfiguration)) throwError(
+          'InvalidArgument:the result of the initial configuration callback is ' +
+          'not a plain object'
+        )
+      }
+
       ConfigurationRef.current = deepCopyOf(initialConfiguration)
     }
 
