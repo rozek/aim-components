@@ -11341,6 +11341,7 @@ function TabStrip(PropSet) {
     const internalActiveIndex = F(activeIndex ?? 0);
     if (activeIndex != null && activeIndex !== externalActiveIndex.current) {
       internalActiveIndex.current = activeIndex;
+      externalActiveIndex.current = activeIndex;
     } else {
       activeIndex = internalActiveIndex.current;
     }
