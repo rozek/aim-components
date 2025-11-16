@@ -6252,6 +6252,7 @@ console.warn(ErrorToShow)
 
       if ((activeIndex != null) && (activeIndex !== externalActiveIndex.current)) {
         internalActiveIndex.current = activeIndex
+        externalActiveIndex.current = activeIndex
       } else {
         activeIndex = internalActiveIndex.current
       }
